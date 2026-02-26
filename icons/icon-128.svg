@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e27"/>
+      <stop offset="100%" style="stop-color:#141830"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00e5ff"/>
+      <stop offset="100%" style="stop-color:#0091a1"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="23" fill="url(#bg)"/>
+  <circle cx="64" cy="53.76" r="28.16" fill="none" stroke="url(#accent)" stroke-width="2.56"/>
+  <text x="64" y="61.44" text-anchor="middle" font-size="45" font-family="Arial, sans-serif" fill="white">⚽</text>
+  <text x="64" y="99.84" text-anchor="middle" font-size="13" font-family="Arial, sans-serif" font-weight="bold" fill="#00e5ff">ROBO</text>
+</svg>
