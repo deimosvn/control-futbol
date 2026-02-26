@@ -1,9 +1,9 @@
 /**
- * RoboFútbol Control - Service Worker
- * Cache-first strategy para funcionamiento offline
+ * BRL Control Pro - Service Worker
+ * Cache-first para funcionamiento offline
  */
 
-const CACHE_NAME = 'robofutbol-v1.0.0';
+const CACHE_NAME = 'brl-control-v2.0.0';
 const ASSETS = [
   '/',
   '/index.html',
@@ -20,41 +20,31 @@ const ASSETS = [
   '/icons/icon-512.svg'
 ];
 
-// Instalación: cachear todos los recursos
 self.addEventListener('install', (event) => {
-  console.log('[SW] Instalando...');
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[SW] Cacheando recursos');
-        return cache.addAll(ASSETS);
-      })
+      .then((cache) => cache.addAll(ASSETS))
       .then(() => self.skipWaiting())
   );
 });
 
-// Activación: limpiar caches antiguas
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activando...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
           .filter((name) => name !== CACHE_NAME)
-          .map((name) => {
-            console.log('[SW] Eliminando cache antigua:', name);
-            return caches.delete(name);
-          })
+          .map((name) => caches.delete(name))
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// Fetch: cache-first, fallback to network
 self.addEventListener('fetch', (event) => {
-  // No cachear WebSocket o peticiones externas
-  if (event.request.url.includes('ws://') || 
+  if (event.request.url.includes('ws://') ||
       event.request.url.includes('wss://') ||
+      event.request.url.includes('fonts.googleapis') ||
+      event.request.url.includes('fonts.gstatic') ||
       !event.request.url.startsWith(self.location.origin)) {
     return;
   }
@@ -63,41 +53,25 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request)
       .then((cached) => {
         if (cached) {
-          // Actualizar en background (stale-while-revalidate)
-          fetch(event.request)
-            .then((response) => {
-              if (response && response.status === 200) {
-                const clone = response.clone();
-                caches.open(CACHE_NAME).then((cache) => {
-                  cache.put(event.request, clone);
-                });
-              }
-            })
-            .catch(() => {});
-          
+          fetch(event.request).then((response) => {
+            if (response && response.status === 200) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, clone);
+              });
+            }
+          }).catch(() => {});
           return cached;
         }
-
-        return fetch(event.request)
-          .then((response) => {
-            if (!response || response.status !== 200) {
-              return response;
-            }
-
+        return fetch(event.request).then((response) => {
+          if (response && response.status === 200) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, clone);
             });
-
-            return response;
-          })
-          .catch(() => {
-            // Fallback para navegación
-            if (event.request.mode === 'navigate') {
-              return caches.match('/index.html');
-            }
-            return new Response('Offline', { status: 503 });
-          });
+          }
+          return response;
+        });
       })
   );
 });

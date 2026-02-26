@@ -1,6 +1,6 @@
 /**
- * RoboFútbol Control - Módulo Bluetooth
- * Conexión vía Web Bluetooth API
+ * BRL Control Pro - Módulo Bluetooth BLE
+ * Conexión real vía Web Bluetooth API para ESP32/HM-10
  */
 class BluetoothConnection {
   constructor() {
@@ -13,65 +13,55 @@ class BluetoothConnection {
     this.onStatusChange = null;
     this.onDataReceived = null;
 
-    // UUIDs comunes para módulos BLE (HM-10, BLE-Nano, ESP32, etc.)
+    // UUIDs para módulos BLE (HM-10, ESP32, etc.)
     this.SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
     this.TX_CHAR_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
     this.RX_CHAR_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
 
-    // UUIDs alternativos para Nordic UART Service (NUS)
+    // Nordic UART Service (NUS) - ESP32 BLE
     this.NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
     this.NUS_TX_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
     this.NUS_RX_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
   }
 
-  /**
-   * Verifica si Web Bluetooth está disponible
-   */
   isAvailable() {
     return 'bluetooth' in navigator;
   }
 
-  /**
-   * Conectar al dispositivo Bluetooth
-   */
   async connect() {
     if (!this.isAvailable()) {
-      throw new Error('Web Bluetooth no está disponible en este navegador');
+      throw new Error('Web Bluetooth no disponible');
     }
 
     try {
       this._updateStatus('connecting', 'Buscando dispositivo...');
 
-      // Solicitar dispositivo con filtros para servicios comunes de robots
       this.device = await navigator.bluetooth.requestDevice({
         filters: [
           { services: [this.SERVICE_UUID] },
           { services: [this.NUS_SERVICE_UUID] },
+          { namePrefix: 'BRL' },
           { namePrefix: 'Robo' },
+          { namePrefix: 'ESP' },
           { namePrefix: 'BT' },
           { namePrefix: 'HC' },
-          { namePrefix: 'HM' },
-          { namePrefix: 'ESP' }
+          { namePrefix: 'HM' }
         ],
         optionalServices: [this.SERVICE_UUID, this.NUS_SERVICE_UUID]
       });
 
-      // Listener para desconexión
       this.device.addEventListener('gattserverdisconnected', () => {
         this._handleDisconnect();
       });
 
       this._updateStatus('connecting', `Conectando a ${this.device.name || 'dispositivo'}...`);
-
-      // Conectar al servidor GATT
       this.server = await this.device.gatt.connect();
 
-      // Intentar obtener el servicio principal
+      // Intentar servicio estándar FFE0
       try {
         this.service = await this.server.getPrimaryService(this.SERVICE_UUID);
         this.txCharacteristic = await this.service.getCharacteristic(this.TX_CHAR_UUID);
-        
-        // Intentar suscribirse a notificaciones RX
+
         try {
           const rxChar = await this.service.getCharacteristic(this.RX_CHAR_UUID);
           await rxChar.startNotifications();
@@ -79,14 +69,14 @@ class BluetoothConnection {
             this._handleData(event.target.value);
           });
         } catch (e) {
-          console.log('RX notifications no disponibles en servicio estándar');
+          console.log('RX notifications no disponibles (servicio estándar)');
         }
       } catch (e) {
-        // Intentar con Nordic UART Service
+        // Fallback: Nordic UART Service
         console.log('Intentando Nordic UART Service...');
         this.service = await this.server.getPrimaryService(this.NUS_SERVICE_UUID);
         this.txCharacteristic = await this.service.getCharacteristic(this.NUS_TX_UUID);
-        
+
         try {
           const rxChar = await this.service.getCharacteristic(this.NUS_RX_UUID);
           await rxChar.startNotifications();
@@ -94,28 +84,25 @@ class BluetoothConnection {
             this._handleData(event.target.value);
           });
         } catch (e2) {
-          console.log('RX notifications no disponibles en NUS');
+          console.log('RX notifications no disponibles (NUS)');
         }
       }
 
       this.connected = true;
-      this._updateStatus('connected', `Conectado a ${this.device.name || 'dispositivo BT'}`);
+      this._updateStatus('connected', `BT: ${this.device.name || 'Conectado'}`);
       return true;
 
     } catch (error) {
       this.connected = false;
       if (error.name === 'NotFoundError') {
-        this._updateStatus('disconnected', 'No se seleccionó ningún dispositivo');
-        throw new Error('No se seleccionó ningún dispositivo');
+        this._updateStatus('disconnected', 'Sin dispositivo seleccionado');
+        throw new Error('No se seleccionó dispositivo');
       }
-      this._updateStatus('disconnected', 'Error de conexión');
+      this._updateStatus('disconnected', 'Error de conexión BT');
       throw error;
     }
   }
 
-  /**
-   * Desconectar
-   */
   async disconnect() {
     if (this.device && this.device.gatt.connected) {
       this.device.gatt.disconnect();
@@ -123,14 +110,8 @@ class BluetoothConnection {
     this._handleDisconnect();
   }
 
-  /**
-   * Enviar datos al robot
-   * @param {Object|string} data - Datos para enviar
-   */
   async send(data) {
-    if (!this.connected || !this.txCharacteristic) {
-      return false;
-    }
+    if (!this.connected || !this.txCharacteristic) return false;
 
     try {
       let payload;
@@ -142,7 +123,7 @@ class BluetoothConnection {
         payload = new TextEncoder().encode(JSON.stringify(data));
       }
 
-      // BLE tiene límite de 20 bytes por escritura, fragmentar si es necesario
+      // BLE limit: 20 bytes per write, fragment if needed
       const maxChunkSize = 20;
       const dataArray = payload instanceof Uint8Array ? payload : new Uint8Array(payload);
 
@@ -150,7 +131,6 @@ class BluetoothConnection {
         const chunk = dataArray.slice(i, i + maxChunkSize);
         await this.txCharacteristic.writeValueWithoutResponse(chunk);
       }
-
       return true;
     } catch (error) {
       console.error('Error enviando datos BT:', error);
@@ -158,45 +138,31 @@ class BluetoothConnection {
     }
   }
 
-  /**
-   * Manejar datos recibidos
-   */
   _handleData(dataView) {
     const decoder = new TextDecoder();
     const value = decoder.decode(dataView);
-    
     if (this.onDataReceived) {
       this.onDataReceived(value, 'bluetooth');
     }
   }
 
-  /**
-   * Manejar desconexión
-   */
   _handleDisconnect() {
     this.connected = false;
     this.server = null;
     this.service = null;
     this.txCharacteristic = null;
-    this._updateStatus('disconnected', 'Bluetooth desconectado');
+    this._updateStatus('disconnected', 'BT desconectado');
   }
 
-  /**
-   * Actualizar estado
-   */
   _updateStatus(state, message) {
     if (this.onStatusChange) {
       this.onStatusChange(state, message, 'bluetooth');
     }
   }
 
-  /**
-   * Obtener nombre del dispositivo
-   */
   getDeviceName() {
     return this.device ? this.device.name || 'Dispositivo BT' : null;
   }
 }
 
-// Exportar como singleton
 window.bluetoothConn = new BluetoothConnection();

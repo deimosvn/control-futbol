@@ -3,47 +3,96 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#00e5ff">
+  <meta name="theme-color" content="#0a0f1a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Control remoto PWA para robot de fútbol">
-  <title>RoboFútbol Control</title>
+  <meta name="description" content="Control profesional para robot de fútbol - Baja Robotics League">
+  <title>BRL Control Pro</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.svg">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Pantalla de carga -->
+  <!-- Splash Screen -->
   <div id="splash" class="splash">
     <div class="splash-content">
-      <div class="splash-icon">⚽</div>
-      <h1>RoboFútbol</h1>
-      <p>Control Remoto</p>
-      <div class="loader"></div>
+      <div class="splash-logo">
+        <div class="splash-ring"></div>
+        <div class="splash-icon-wrap">
+          <svg viewBox="0 0 80 80" fill="none" width="80" height="80">
+            <circle cx="40" cy="40" r="36" stroke="url(#sg1)" stroke-width="2"/>
+            <circle cx="40" cy="40" r="12" fill="url(#sg1)" opacity="0.8"/>
+            <path d="M40 8a32 32 0 100 64 32 32 0 000-64zm0 4c4 0 7.7.9 11 2.6L46.2 22H33.8l-4.8-7.4A28 28 0 0140 12z" fill="url(#sg1)" opacity="0.35"/>
+            <defs>
+              <linearGradient id="sg1" x1="8" y1="8" x2="72" y2="72">
+                <stop stop-color="#00e5ff"/>
+                <stop offset="1" stop-color="#0070ff"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+      </div>
+      <h1 class="splash-title">BRL CONTROL</h1>
+      <p class="splash-subtitle">BAJA ROBOTICS LEAGUE</p>
+      <div class="splash-loader">
+        <div class="splash-loader-bar"></div>
+      </div>
+      <span class="splash-version">v2.0 PRO</span>
     </div>
   </div>
 
-  <!-- App principal -->
+  <!-- App -->
   <div id="app" class="app hidden">
     <!-- Header -->
     <header class="header">
       <div class="header-left">
-        <span class="app-title">⚽ RoboFútbol</span>
+        <div class="header-logo">
+          <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="36" stroke="url(#hl)" stroke-width="3"/>
+            <circle cx="40" cy="40" r="10" fill="url(#hl)"/>
+            <defs><linearGradient id="hl" x1="8" y1="8" x2="72" y2="72"><stop stop-color="#00e5ff"/><stop offset="1" stop-color="#0070ff"/></linearGradient></defs>
+          </svg>
+        </div>
+        <div class="header-titles">
+          <span class="app-title">BRL CONTROL</span>
+          <span class="app-subtitle" id="robotNameDisplay">BRL-BOT-01</span>
+        </div>
+      </div>
+      <div class="header-center">
+        <div class="telemetry-bar">
+          <div class="telemetry-item" id="latencyDisplay" title="Latencia">
+            <span class="telem-label">PING</span>
+            <span class="telem-value">--</span>
+            <span class="telem-unit">ms</span>
+          </div>
+          <div class="telem-divider"></div>
+          <div class="telemetry-item" id="fpsDisplay" title="Tasa de envío">
+            <span class="telem-label">RATE</span>
+            <span class="telem-value" id="sendRateDisplay">50</span>
+            <span class="telem-unit">ms</span>
+          </div>
+        </div>
       </div>
       <div class="header-right">
         <div class="battery-indicator" id="batteryIndicator" title="Batería del robot">
-          <div class="battery-icon">
-            <div class="battery-level" id="batteryLevel"></div>
+          <div class="battery-wrap">
+            <div class="battery-body">
+              <div class="battery-level" id="batteryLevel"></div>
+            </div>
+            <div class="battery-cap"></div>
           </div>
-          <span id="batteryText">--</span>
+          <span class="battery-text" id="batteryText">--%</span>
         </div>
-        <div class="connection-status" id="connectionStatus">
+        <button class="conn-status-btn" id="connectionStatus">
           <span class="status-dot disconnected"></span>
-          <span class="status-text">Desconectado</span>
-        </div>
-        <button class="btn-icon" id="btnSettings" aria-label="Configuración">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+          <span class="status-text">Sin conexión</span>
+        </button>
+        <button class="header-btn" id="btnSettings" aria-label="Configuración">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-2.82 1.18V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1.08H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001.08-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001.08 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1.08H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1.08z"/>
           </svg>
         </button>
       </div>
@@ -53,125 +102,158 @@
     <div id="connectionPanel" class="connection-panel hidden">
       <div class="panel-overlay" id="panelOverlay"></div>
       <div class="panel-content">
-        <h2>Conexión</h2>
+        <div class="panel-handle"></div>
+        <h2 class="panel-title">Conectar Robot</h2>
         
-        <!-- Bluetooth -->
-        <div class="conn-option" id="connBluetooth">
-          <div class="conn-icon bluetooth">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/>
-            </svg>
+        <div class="conn-card" id="connBluetooth">
+          <div class="conn-card-header">
+            <div class="conn-icon bluetooth">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/>
+              </svg>
+            </div>
+            <div class="conn-info">
+              <span class="conn-name">Bluetooth BLE</span>
+              <span class="conn-desc" id="btStatus">Web Bluetooth API</span>
+            </div>
+            <button class="btn-connect" id="btnBluetooth">Conectar</button>
           </div>
-          <div class="conn-info">
-            <span class="conn-name">Bluetooth</span>
-            <span class="conn-desc" id="btStatus">Web Bluetooth API</span>
-          </div>
-          <button class="btn-connect" id="btnBluetooth">Conectar</button>
         </div>
 
-        <!-- WiFi -->
-        <div class="conn-option" id="connWifi">
-          <div class="conn-icon wifi">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
-            </svg>
+        <div class="conn-card" id="connWifi">
+          <div class="conn-card-header">
+            <div class="conn-icon wifi">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
+              </svg>
+            </div>
+            <div class="conn-info">
+              <span class="conn-name">WiFi WebSocket</span>
+              <span class="conn-desc" id="wifiStatus">ESP32 Access Point</span>
+            </div>
+            <button class="btn-connect" id="btnWifi">Conectar</button>
           </div>
-          <div class="conn-info">
-            <span class="conn-name">WiFi</span>
-            <span class="conn-desc" id="wifiStatus">WebSocket</span>
+          <div class="conn-config">
+            <div class="config-row">
+              <label>IP</label>
+              <input type="text" id="wifiIP" placeholder="192.168.4.1" value="192.168.4.1" class="input-field">
+            </div>
+            <div class="config-row">
+              <label>Puerto</label>
+              <input type="number" id="wifiPort" placeholder="81" value="81" class="input-field short">
+            </div>
           </div>
-          <div class="wifi-config" id="wifiConfig">
-            <input type="text" id="wifiIP" placeholder="192.168.4.1" value="192.168.4.1" class="input-field">
-            <input type="number" id="wifiPort" placeholder="81" value="81" class="input-field small">
-          </div>
-          <button class="btn-connect" id="btnWifi">Conectar</button>
         </div>
 
-        <!-- Radio Frecuencia -->
-        <div class="conn-option" id="connRF">
-          <div class="conn-icon rf">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7.76 16.24C6.67 15.16 6 13.66 6 12s.67-3.16 1.76-4.24l1.42 1.42C8.45 9.9 8 10.9 8 12c0 1.1.45 2.1 1.17 2.83l-1.41 1.41zm8.48 0l-1.42-1.42C15.55 14.1 16 13.1 16 12c0-1.1-.45-2.1-1.17-2.83l1.41-1.41C17.33 8.84 18 10.34 18 12s-.67 3.16-1.76 4.24zM12 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM20 12c0 2.21-.9 4.21-2.35 5.65l1.42 1.42C20.88 17.26 22 14.76 22 12s-1.12-5.26-2.93-7.07l-1.42 1.42A7.94 7.94 0 0120 12zM6.35 6.35L4.93 4.93C3.12 6.74 2 9.24 2 12s1.12 5.26 2.93 7.07l1.42-1.42C4.9 16.21 4 14.21 4 12s.9-4.21 2.35-5.65z"/>
-            </svg>
+        <div class="conn-card" id="connRF">
+          <div class="conn-card-header">
+            <div class="conn-icon rf">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7.76 16.24C6.67 15.16 6 13.66 6 12s.67-3.16 1.76-4.24l1.42 1.42C8.45 9.9 8 10.9 8 12c0 1.1.45 2.1 1.17 2.83l-1.41 1.41zm8.48 0l-1.42-1.42C15.55 14.1 16 13.1 16 12c0-1.1-.45-2.1-1.17-2.83l1.41-1.41C17.33 8.84 18 10.34 18 12s-.67 3.16-1.76 4.24zM12 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+              </svg>
+            </div>
+            <div class="conn-info">
+              <span class="conn-name">Radio Frecuencia</span>
+              <span class="conn-desc" id="rfStatus">Web Serial (Solo PC)</span>
+            </div>
+            <button class="btn-connect" id="btnRF">Conectar</button>
           </div>
-          <div class="conn-info">
-            <span class="conn-name">Radio Frecuencia</span>
-            <span class="conn-desc" id="rfStatus">Web Serial API</span>
+          <div class="conn-config">
+            <div class="config-row">
+              <label>Baudios</label>
+              <select id="rfBaudRate" class="input-field">
+                <option value="9600">9600</option>
+                <option value="115200" selected>115200</option>
+              </select>
+            </div>
           </div>
-          <div class="rf-config" id="rfConfig">
-            <select id="rfBaudRate" class="input-field">
-              <option value="9600">9600 baud</option>
-              <option value="19200">19200 baud</option>
-              <option value="38400">38400 baud</option>
-              <option value="57600">57600 baud</option>
-              <option value="115200" selected>115200 baud</option>
-            </select>
-          </div>
-          <button class="btn-connect" id="btnRF">Conectar</button>
         </div>
 
         <button class="btn-close-panel" id="btnClosePanel">Cerrar</button>
       </div>
     </div>
 
-    <!-- Controles principales -->
+    <!-- Controles -->
     <main class="controls">
-      <!-- Indicador de velocidad -->
-      <div class="speed-section">
-        <label class="speed-label">Velocidad: <span id="speedValue">50</span>%</label>
+      <!-- Velocidad -->
+      <div class="speed-bar">
+        <div class="speed-info">
+          <span class="speed-label">VEL</span>
+          <span class="speed-value" id="speedValue">50</span>
+          <span class="speed-unit">%</span>
+        </div>
         <input type="range" id="speedSlider" class="speed-slider" min="0" max="100" value="50">
         <div class="speed-presets">
-          <button class="speed-btn" data-speed="25">Lento</button>
-          <button class="speed-btn active" data-speed="50">Normal</button>
-          <button class="speed-btn" data-speed="75">Rápido</button>
-          <button class="speed-btn" data-speed="100">Turbo</button>
+          <button class="speed-btn" data-speed="25">25</button>
+          <button class="speed-btn active" data-speed="50">50</button>
+          <button class="speed-btn" data-speed="75">75</button>
+          <button class="speed-btn turbo" data-speed="100">⚡</button>
         </div>
       </div>
 
       <!-- Área de controles -->
       <div class="controls-area">
-        <!-- Joystick izquierdo - Movimiento -->
+        <!-- Joystick izquierdo -->
         <div class="joystick-container" id="joystickMove">
-          <div class="joystick-label">Movimiento</div>
+          <div class="joystick-label">MOVIMIENTO</div>
           <div class="joystick-zone" id="joystickMoveZone">
             <div class="joystick-base">
-              <div class="joystick-stick" id="joystickMoveStick"></div>
+              <div class="joystick-crosshair"></div>
+              <div class="joystick-stick" id="joystickMoveStick">
+                <div class="joystick-dot"></div>
+              </div>
             </div>
+          </div>
+          <div class="joystick-readout">
+            <span id="moveXVal">X: 0</span>
+            <span id="moveYVal">Y: 0</span>
           </div>
         </div>
 
-        <!-- Botones de acción centrales -->
-        <div class="action-buttons">
-          <button class="action-btn kick" id="btnKick" data-action="kick">
-            <span class="btn-icon-inner">⚽</span>
-            <span class="btn-label">Patear</span>
-          </button>
-          <button class="action-btn pass" id="btnPass" data-action="pass">
-            <span class="btn-icon-inner">↗</span>
-            <span class="btn-label">Pasar</span>
-          </button>
-          <button class="action-btn special" id="btnSpecial" data-action="special">
-            <span class="btn-icon-inner">⚡</span>
-            <span class="btn-label">Especial</span>
-          </button>
-          <button class="action-btn stop" id="btnStop" data-action="stop">
-            <span class="btn-icon-inner">✋</span>
-            <span class="btn-label">Parar</span>
-          </button>
+        <!-- Botones centrales -->
+        <div class="action-center">
+          <div class="mode-badge" id="modeIndicator">
+            <span id="modeText">MANUAL</span>
+          </div>
+          <div class="action-buttons">
+            <button class="action-btn kick" id="btnKick" data-action="kick">
+              <span class="action-icon">⚽</span>
+              <span class="action-label">PATEAR</span>
+            </button>
+            <button class="action-btn pass" id="btnPass" data-action="pass">
+              <span class="action-icon">↗</span>
+              <span class="action-label">PASAR</span>
+            </button>
+            <button class="action-btn special" id="btnSpecial" data-action="special">
+              <span class="action-icon">⚡</span>
+              <span class="action-label">ESPECIAL</span>
+            </button>
+            <button class="action-btn stop-action" id="btnStop" data-action="stop">
+              <span class="action-icon">■</span>
+              <span class="action-label">PARAR</span>
+            </button>
+          </div>
         </div>
 
-        <!-- Joystick derecho - Rotación -->
+        <!-- Joystick derecho -->
         <div class="joystick-container" id="joystickRotate">
-          <div class="joystick-label">Rotación</div>
+          <div class="joystick-label">ROTACIÓN</div>
           <div class="joystick-zone" id="joystickRotateZone">
             <div class="joystick-base">
-              <div class="joystick-stick" id="joystickRotateStick"></div>
+              <div class="joystick-crosshair"></div>
+              <div class="joystick-stick" id="joystickRotateStick">
+                <div class="joystick-dot"></div>
+              </div>
             </div>
+          </div>
+          <div class="joystick-readout">
+            <span id="rotXVal">X: 0</span>
+            <span id="rotYVal">Y: 0</span>
           </div>
         </div>
       </div>
 
-      <!-- D-Pad alternativo (se puede activar en configuración) -->
+      <!-- D-Pad alternativo -->
       <div class="dpad-container hidden" id="dpadContainer">
         <div class="dpad">
           <button class="dpad-btn up" id="dpadUp" data-dir="up">▲</button>
@@ -182,24 +264,27 @@
         </div>
       </div>
 
-      <!-- Botones rápidos inferiores -->
-      <div class="quick-actions">
-        <button class="quick-btn" id="btnEmergency" data-action="emergency">
-          🛑 Emergencia
+      <!-- Botones rápidos -->
+      <div class="quick-bar">
+        <button class="quick-btn emergency" id="btnEmergency" data-action="emergency">
+          🛑 EMERGENCIA
         </button>
         <button class="quick-btn" id="btnCalibrate" data-action="calibrate">
-          🔧 Calibrar
+          🔧 CALIBRAR
         </button>
         <button class="quick-btn" id="btnMode" data-action="mode">
-          🔄 Modo
+          🔄 MODO
         </button>
       </div>
     </main>
 
-    <!-- Modal de configuración -->
+    <!-- Modal configuración -->
     <div id="settingsModal" class="modal hidden">
       <div class="modal-content">
-        <h2>Configuración</h2>
+        <div class="modal-header">
+          <h2>⚙ Configuración</h2>
+          <button class="modal-close" id="btnCloseSettings">✕</button>
+        </div>
         
         <div class="setting-group">
           <h3>Control</h3>
@@ -225,11 +310,11 @@
           <h3>Robot</h3>
           <label class="setting-item">
             <span>Nombre del robot</span>
-            <input type="text" id="settingRobotName" class="input-field" placeholder="Mi Robot" value="RoboFútbol-01">
+            <input type="text" id="settingRobotName" class="input-field" value="BRL-BOT-01">
           </label>
           <label class="setting-item">
-            <span>Frecuencia de envío (ms)</span>
-            <input type="number" id="settingSendRate" class="input-field small" value="50" min="20" max="200">
+            <span>Frecuencia envío (ms)</span>
+            <input type="number" id="settingSendRate" class="input-field short" value="50" min="20" max="200">
           </label>
         </div>
 
@@ -239,7 +324,7 @@
             <span>Formato de datos</span>
             <select id="settingProtocol" class="input-field">
               <option value="json">JSON</option>
-              <option value="binary">Binario</option>
+              <option value="binary">Binario (Recomendado)</option>
               <option value="csv">CSV</option>
             </select>
           </label>
@@ -247,12 +332,12 @@
 
         <div class="modal-actions">
           <button class="btn-primary" id="btnSaveSettings">Guardar</button>
-          <button class="btn-secondary" id="btnCloseSettings">Cancelar</button>
+          <button class="btn-secondary" id="btnCloseSettingsAlt">Cancelar</button>
         </div>
       </div>
     </div>
 
-    <!-- Toast de notificaciones -->
+    <!-- Toast -->
     <div id="toast" class="toast hidden"></div>
   </div>
 

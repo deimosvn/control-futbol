@@ -1,6 +1,7 @@
 /**
- * RoboFútbol Control - Aplicación Principal
- * Maneja la interfaz, joysticks, conexiones y protocolo de comunicación
+ * BRL Control Pro - Aplicación Principal
+ * Baja Robotics League - Robot Football Controller
+ * Protocolo real para ESP32 / Arduino
  */
 (function () {
   'use strict';
@@ -9,23 +10,25 @@
   // Estado de la aplicación
   // ==========================================
   const state = {
-    connectionType: null, // 'bluetooth' | 'wifi' | 'rf'
+    connectionType: null,
     connected: false,
     speed: 50,
     sensitivity: 5,
-    controlType: 'joystick', // 'joystick' | 'dpad' | 'gyro'
+    controlType: 'joystick',
     vibration: true,
     sendRate: 50,
-    protocol: 'json', // 'json' | 'binary' | 'csv'
-    robotName: 'RoboFútbol-01',
+    protocol: 'binary',
+    robotName: 'BRL-BOT-01',
     battery: null,
-    mode: 'manual', // 'manual' | 'auto' | 'defend'
+    mode: 'manual',
     moveX: 0,
     moveY: 0,
     rotateX: 0,
     rotateY: 0,
     lastSendTime: 0,
-    gyroEnabled: false
+    gyroEnabled: false,
+    sendCount: 0,
+    lastSendCountReset: Date.now()
   };
 
   // ==========================================
@@ -58,6 +61,7 @@
     btnRF: $('#btnRF'),
     btnSaveSettings: $('#btnSaveSettings'),
     btnCloseSettings: $('#btnCloseSettings'),
+    btnCloseSettingsAlt: $('#btnCloseSettingsAlt'),
     btnEmergency: $('#btnEmergency'),
     btnCalibrate: $('#btnCalibrate'),
     btnMode: $('#btnMode'),
@@ -79,50 +83,48 @@
     rfStatus: $('#rfStatus'),
     connBluetooth: $('#connBluetooth'),
     connWifi: $('#connWifi'),
-    connRF: $('#connRF')
+    connRF: $('#connRF'),
+    robotNameDisplay: $('#robotNameDisplay'),
+    modeText: $('#modeText'),
+    moveXVal: $('#moveXVal'),
+    moveYVal: $('#moveYVal'),
+    rotXVal: $('#rotXVal'),
+    rotYVal: $('#rotYVal'),
+    sendRateDisplay: $('#sendRateDisplay'),
+    latencyDisplay: $('#latencyDisplay')
   };
 
   // ==========================================
   // Inicialización
   // ==========================================
   function init() {
-    // Cargar configuración guardada
     loadSettings();
 
-    // Ocultar splash después de 1.5s
+    // Splash screen con animación
     setTimeout(() => {
       dom.splash.classList.add('fade-out');
       dom.app.classList.remove('hidden');
-      setTimeout(() => dom.splash.classList.add('hidden'), 500);
-    }, 1500);
+      setTimeout(() => dom.splash.classList.add('hidden'), 600);
+    }, 1800);
 
-    // Inicializar módulos de conexión
     initConnections();
-
-    // Configurar event listeners
     setupEventListeners();
-
-    // Inicializar joysticks
     setupJoystick(dom.joystickMoveZone, dom.joystickMoveStick, 'move');
     setupJoystick(dom.joystickRotateZone, dom.joystickRotateStick, 'rotate');
-
-    // Verificar APIs disponibles
     checkAPIs();
-
-    // Iniciar loop de envío
     startSendLoop();
-
-    // Registrar Service Worker
     registerSW();
-
-    // Prevenir zoom
     preventZoom();
 
-    console.log('🤖 RoboFútbol Control iniciado');
+    // Actualizar nombre del robot en header
+    dom.robotNameDisplay.textContent = state.robotName;
+    dom.sendRateDisplay.textContent = state.sendRate;
+
+    console.log('🤖 BRL Control Pro v2.0 iniciado');
   }
 
   // ==========================================
-  // Verificar APIs disponibles
+  // Verificar APIs
   // ==========================================
   function checkAPIs() {
     if (!window.bluetoothConn.isAvailable()) {
@@ -137,7 +139,7 @@
     }
 
     if (!window.rfConn.isAvailable()) {
-      dom.rfStatus.textContent = 'No disponible en móvil';
+      dom.rfStatus.textContent = 'Solo PC (Chrome/Edge)';
       dom.btnRF.disabled = true;
       dom.btnRF.textContent = 'Solo PC';
     }
@@ -164,11 +166,9 @@
     const statusDot = dom.connectionStatus.querySelector('.status-dot');
     const statusText = dom.connectionStatus.querySelector('.status-text');
 
-    // Actualizar indicador principal
     statusDot.className = 'status-dot ' + statusState;
     statusText.textContent = message;
 
-    // Actualizar estado
     if (statusState === 'connected') {
       state.connected = true;
       state.connectionType = type;
@@ -181,15 +181,12 @@
       }
     }
 
-    // Actualizar botones del panel
     updateConnectionButtons(type, statusState);
 
-    // Actualizar texto de estado en panel
     const statusEl = type === 'bluetooth' ? dom.btStatus :
                      type === 'wifi' ? dom.wifiStatus : dom.rfStatus;
     if (statusEl) statusEl.textContent = message;
 
-    // Marcar opción activa
     const connEl = type === 'bluetooth' ? dom.connBluetooth :
                    type === 'wifi' ? dom.connWifi : dom.connRF;
     if (connEl) {
@@ -200,7 +197,7 @@
   function updateConnectionButtons(type, status) {
     const btn = type === 'bluetooth' ? dom.btnBluetooth :
                 type === 'wifi' ? dom.btnWifi : dom.btnRF;
-    
+
     if (status === 'connected') {
       btn.textContent = 'Desconectar';
       btn.classList.add('connected');
@@ -220,22 +217,26 @@
     try {
       const parsed = typeof data === 'string' ? JSON.parse(data) : data;
 
-      // Actualizar batería si viene en los datos
-      if (parsed.battery !== undefined) {
-        updateBattery(parsed.battery);
+      if (parsed.bat !== undefined || parsed.battery !== undefined) {
+        updateBattery(parsed.bat || parsed.battery);
       }
-
-      // Otros datos del robot
       if (parsed.mode !== undefined) {
         state.mode = parsed.mode;
+        updateModeDisplay();
       }
-
+      if (parsed.ping !== undefined) {
+        // Actualizar latencia
+        const latencyEl = dom.latencyDisplay.querySelector('.telem-value');
+        if (latencyEl) latencyEl.textContent = parsed.ping;
+      }
     } catch (e) {
-      // Si no es JSON, procesar como texto
       if (typeof data === 'string') {
-        // Formato simple: "BAT:85"
+        // Formatos simples: BAT:85, OK, ERR
         if (data.startsWith('BAT:')) {
           updateBattery(parseInt(data.split(':')[1]));
+        } else if (data.startsWith('PONG:')) {
+          const latencyEl = dom.latencyDisplay.querySelector('.telem-value');
+          if (latencyEl) latencyEl.textContent = data.split(':')[1];
         }
       }
     }
@@ -254,8 +255,13 @@
     }
   }
 
+  function updateModeDisplay() {
+    const modeNames = { manual: 'MANUAL', auto: 'AUTO', defend: 'DEFENSA' };
+    dom.modeText.textContent = modeNames[state.mode] || 'MANUAL';
+  }
+
   // ==========================================
-  // Envío de datos
+  // Envío de datos - Protocolo Real
   // ==========================================
   function startSendLoop() {
     setInterval(() => {
@@ -264,15 +270,15 @@
       const now = Date.now();
       if (now - state.lastSendTime < state.sendRate) return;
 
-      // Solo enviar si hay movimiento
-      if (state.moveX === 0 && state.moveY === 0 && 
+      if (state.moveX === 0 && state.moveY === 0 &&
           state.rotateX === 0 && state.rotateY === 0) {
         return;
       }
 
       sendControlData();
       state.lastSendTime = now;
-    }, 16); // ~60fps check
+      state.sendCount++;
+    }, 16);
   }
 
   function sendControlData() {
@@ -285,6 +291,12 @@
     });
 
     sendData(data);
+
+    // Actualizar readouts visuales
+    if (dom.moveXVal) dom.moveXVal.textContent = `X: ${state.moveX.toFixed(1)}`;
+    if (dom.moveYVal) dom.moveYVal.textContent = `Y: ${state.moveY.toFixed(1)}`;
+    if (dom.rotXVal) dom.rotXVal.textContent = `X: ${state.rotateX.toFixed(1)}`;
+    if (dom.rotYVal) dom.rotYVal.textContent = `Y: ${state.rotateY.toFixed(1)}`;
   }
 
   function sendAction(action, params = {}) {
@@ -292,24 +304,33 @@
     sendData(data);
   }
 
+  /**
+   * Construir payload según protocolo seleccionado.
+   * PROTOCOLO BINARIO (8 bytes) - Recomendado para baja latencia:
+   * [0xAA][CMD][MX][MY][RX][RY][SPD][0x55]
+   *   - Header: 0xAA
+   *   - CMD: código de comando (1 byte)
+   *   - MX,MY,RX,RY: ejes normalizados (0-255, 128=centro)
+   *   - SPD: velocidad (0-100)
+   *   - Footer: 0x55
+   */
   function buildPayload(command, params = {}) {
     switch (state.protocol) {
       case 'json':
         return JSON.stringify({ cmd: command, ...params, t: Date.now() % 100000 });
-      
+
       case 'csv': {
         const values = [command, ...Object.values(params)];
         return values.join(',') + '\n';
       }
 
       case 'binary': {
-        // Protocolo binario compacto: [CMD(1)][MX(1)][MY(1)][RX(1)][RY(1)][SPD(1)]
         const cmdMap = {
           'move': 0x01, 'kick': 0x02, 'pass': 0x03,
           'special': 0x04, 'stop': 0x05, 'emergency': 0xFF,
           'calibrate': 0x10, 'mode': 0x11
         };
-        
+
         const buf = new Uint8Array(8);
         buf[0] = 0xAA; // Header
         buf[1] = cmdMap[command] || 0x00;
@@ -317,7 +338,7 @@
         buf[3] = Math.round((params.my || 0) * 127) + 128;
         buf[4] = Math.round((params.rx || 0) * 127) + 128;
         buf[5] = Math.round((params.ry || 0) * 127) + 128;
-        buf[6] = params.spd || state.speed;
+        buf[6] = params.spd !== undefined ? params.spd : state.speed;
         buf[7] = 0x55; // Footer
         return buf;
       }
@@ -329,7 +350,6 @@
 
   function sendData(data) {
     if (!state.connected) return;
-
     const conn = getActiveConnection();
     if (conn) {
       conn.send(data);
@@ -357,33 +377,24 @@
 
     function getPosition(clientX, clientY) {
       if (!baseRect) return { x: 0, y: 0 };
-
       const centerX = baseRect.left + baseRect.width / 2;
       const centerY = baseRect.top + baseRect.height / 2;
-
       let dx = clientX - centerX;
       let dy = clientY - centerY;
-
-      // Limitar al radio máximo
       const distance = Math.sqrt(dx * dx + dy * dy);
       if (distance > maxRadius) {
         dx = (dx / distance) * maxRadius;
         dy = (dy / distance) * maxRadius;
       }
-
       return { x: dx, y: dy };
     }
 
     function updateStick(dx, dy) {
       stick.style.transform = `translate(${dx}px, ${dy}px)`;
-
-      // Normalizar a -1..1
       const nx = maxRadius > 0 ? dx / maxRadius : 0;
-      const ny = maxRadius > 0 ? -(dy / maxRadius) : 0; // Invertir Y
-
-      // Aplicar sensibilidad y dead zone
+      const ny = maxRadius > 0 ? -(dy / maxRadius) : 0;
       const deadZone = 0.1;
-      const sens = state.sensitivity / 5; // 0.2..2.0
+      const sens = state.sensitivity / 5;
 
       if (type === 'move') {
         state.moveX = applyDeadZone(nx * sens, deadZone);
@@ -397,22 +408,18 @@
     function applyDeadZone(value, threshold) {
       if (Math.abs(value) < threshold) return 0;
       const sign = value > 0 ? 1 : -1;
-      return sign * ((Math.abs(value) - threshold) / (1 - threshold));
+      return sign * Math.min(1, ((Math.abs(value) - threshold) / (1 - threshold)));
     }
 
     function onStart(e) {
       e.preventDefault();
       if (active) return;
-
       const touch = e.touches ? e.touches[0] : e;
       touchId = e.touches ? e.touches[0].identifier : -1;
       active = true;
-
       baseRect = baseEl.getBoundingClientRect();
       maxRadius = (baseRect.width / 2) - (stick.offsetWidth / 2);
-
       stick.classList.add('active');
-      
       const pos = getPosition(touch.clientX, touch.clientY);
       updateStick(pos.x, pos.y);
       vibrate(10);
@@ -421,7 +428,6 @@
     function onMove(e) {
       if (!active) return;
       e.preventDefault();
-
       let touch;
       if (e.touches) {
         touch = Array.from(e.touches).find(t => t.identifier === touchId);
@@ -429,24 +435,19 @@
       } else {
         touch = e;
       }
-
       const pos = getPosition(touch.clientX, touch.clientY);
       updateStick(pos.x, pos.y);
     }
 
     function onEnd(e) {
       if (!active) return;
-
       if (e.changedTouches) {
         const ended = Array.from(e.changedTouches).find(t => t.identifier === touchId);
         if (!ended) return;
       }
-
       active = false;
       touchId = null;
       stick.classList.remove('active');
-
-      // Volver al centro con animación
       stick.style.transition = 'transform 0.15s ease-out';
       stick.style.transform = 'translate(0, 0)';
       setTimeout(() => { stick.style.transition = 'none'; }, 150);
@@ -459,17 +460,22 @@
         state.rotateY = 0;
       }
 
-      // Enviar parada inmediatamente
+      // Reset readouts
+      if (type === 'move') {
+        if (dom.moveXVal) dom.moveXVal.textContent = 'X: 0';
+        if (dom.moveYVal) dom.moveYVal.textContent = 'Y: 0';
+      } else {
+        if (dom.rotXVal) dom.rotXVal.textContent = 'X: 0';
+        if (dom.rotYVal) dom.rotYVal.textContent = 'Y: 0';
+      }
+
       sendControlData();
     }
 
-    // Touch events
     zone.addEventListener('touchstart', onStart, { passive: false });
     zone.addEventListener('touchmove', onMove, { passive: false });
     zone.addEventListener('touchend', onEnd, { passive: false });
     zone.addEventListener('touchcancel', onEnd, { passive: false });
-
-    // Mouse events (para pruebas en desktop)
     zone.addEventListener('mousedown', onStart);
     document.addEventListener('mousemove', (e) => { if (active && touchId === -1) onMove(e); });
     document.addEventListener('mouseup', (e) => { if (active && touchId === -1) onEnd(e); });
@@ -518,15 +524,11 @@
       return;
     }
 
-    // Pedir permiso en iOS 13+
     if (typeof DeviceOrientationEvent.requestPermission === 'function') {
       DeviceOrientationEvent.requestPermission()
         .then(permission => {
-          if (permission === 'granted') {
-            startGyro();
-          } else {
-            showToast('⚠️ Permiso de giroscopio denegado', 'warning');
-          }
+          if (permission === 'granted') startGyro();
+          else showToast('⚠️ Permiso denegado', 'warning');
         })
         .catch(console.error);
     } else {
@@ -537,7 +539,7 @@
   function startGyro() {
     state.gyroEnabled = true;
     window.addEventListener('deviceorientation', handleGyro);
-    showToast('🎮 Control por giroscopio activado', 'success');
+    showToast('🎮 Giroscopio activado', 'success');
   }
 
   function stopGyro() {
@@ -547,22 +549,17 @@
 
   function handleGyro(event) {
     if (!state.gyroEnabled || state.controlType !== 'gyro') return;
-
-    // beta = inclinación adelante/atrás (-180..180)
-    // gamma = inclinación izquierda/derecha (-90..90)
     const beta = event.beta || 0;
     const gamma = event.gamma || 0;
-
-    // Normalizar a -1..1 con rango cómodo
     state.moveX = Math.max(-1, Math.min(1, gamma / 30));
-    state.moveY = Math.max(-1, Math.min(1, -(beta - 30) / 30)); // 30° es la posición neutral
+    state.moveY = Math.max(-1, Math.min(1, -(beta - 30) / 30));
   }
 
   // ==========================================
   // Event Listeners
   // ==========================================
   function setupEventListeners() {
-    // Conexión panel - abrir/cerrar
+    // Conexión panel
     dom.connectionStatus.addEventListener('click', () => {
       dom.connectionPanel.classList.toggle('hidden');
     });
@@ -575,16 +572,17 @@
       dom.connectionPanel.classList.add('hidden');
     });
 
-    // Botones de conexión
+    // Bluetooth
     dom.btnBluetooth.addEventListener('click', async () => {
       if (window.bluetoothConn.connected) {
         await window.bluetoothConn.disconnect();
       } else {
-        try { await window.bluetoothConn.connect(); } 
+        try { await window.bluetoothConn.connect(); }
         catch (e) { showToast(`❌ ${e.message}`, 'error'); }
       }
     });
 
+    // WiFi
     dom.btnWifi.addEventListener('click', async () => {
       if (window.wifiConn.connected) {
         await window.wifiConn.disconnect();
@@ -597,6 +595,7 @@
       }
     });
 
+    // RF
     dom.btnRF.addEventListener('click', async () => {
       if (window.rfConn.connected) {
         await window.rfConn.disconnect();
@@ -635,7 +634,6 @@
         btn.style.transform = 'scale(0.9)';
         setTimeout(() => { btn.style.transform = ''; }, 100);
       };
-
       btn.addEventListener('touchstart', handler, { passive: false });
       btn.addEventListener('mousedown', handler);
     };
@@ -645,7 +643,7 @@
     actionHandler(dom.btnSpecial, 'special');
     actionHandler(dom.btnStop, 'stop');
 
-    // Botones rápidos
+    // Emergencia
     dom.btnEmergency.addEventListener('click', () => {
       vibrate([100, 50, 100]);
       sendAction('emergency');
@@ -656,25 +654,26 @@
       showToast('🛑 ¡PARADA DE EMERGENCIA!', 'error');
     });
 
+    // Calibrar
     dom.btnCalibrate.addEventListener('click', () => {
       vibrate(50);
       sendAction('calibrate');
       showToast('🔧 Calibrando...', 'warning');
     });
 
+    // Modo
     dom.btnMode.addEventListener('click', () => {
       const modes = ['manual', 'auto', 'defend'];
       const currentIndex = modes.indexOf(state.mode);
       state.mode = modes[(currentIndex + 1) % modes.length];
-      
       vibrate(20);
       sendAction('mode', { mode: state.mode });
-      
+      updateModeDisplay();
       const modeNames = { manual: '🎮 Manual', auto: '🤖 Automático', defend: '🛡️ Defensa' };
       showToast(`Modo: ${modeNames[state.mode]}`, 'success');
     });
 
-    // Configuración
+    // Settings
     dom.btnSettings.addEventListener('click', () => {
       dom.settingsModal.classList.remove('hidden');
       loadSettingsToUI();
@@ -683,6 +682,12 @@
     dom.btnCloseSettings.addEventListener('click', () => {
       dom.settingsModal.classList.add('hidden');
     });
+
+    if (dom.btnCloseSettingsAlt) {
+      dom.btnCloseSettingsAlt.addEventListener('click', () => {
+        dom.settingsModal.classList.add('hidden');
+      });
+    }
 
     dom.btnSaveSettings.addEventListener('click', () => {
       saveSettingsFromUI();
@@ -703,7 +708,7 @@
   // ==========================================
   function loadSettings() {
     try {
-      const saved = localStorage.getItem('robofutbol_settings');
+      const saved = localStorage.getItem('brl_control_settings');
       if (saved) {
         const settings = JSON.parse(saved);
         Object.assign(state, settings);
@@ -734,12 +739,13 @@
     state.robotName = dom.settingRobotName.value;
     state.protocol = dom.settingProtocol.value;
 
-    // Cambiar tipo de control
     if (oldControlType !== state.controlType) {
       applyControlType();
     }
 
-    // Guardar en localStorage
+    dom.robotNameDisplay.textContent = state.robotName;
+    dom.sendRateDisplay.textContent = state.sendRate;
+
     const toSave = {
       speed: state.speed,
       sensitivity: state.sensitivity,
@@ -751,7 +757,7 @@
     };
 
     try {
-      localStorage.setItem('robofutbol_settings', JSON.stringify(toSave));
+      localStorage.setItem('brl_control_settings', JSON.stringify(toSave));
     } catch (e) {
       console.error('Error guardando configuración:', e);
     }
@@ -800,17 +806,12 @@
   }
 
   function preventZoom() {
-    // Prevenir doble-tap zoom
     let lastTouchEnd = 0;
     document.addEventListener('touchend', (e) => {
       const now = Date.now();
-      if (now - lastTouchEnd <= 300) {
-        e.preventDefault();
-      }
+      if (now - lastTouchEnd <= 300) e.preventDefault();
       lastTouchEnd = now;
     }, false);
-
-    // Prevenir pinch zoom
     document.addEventListener('gesturestart', (e) => e.preventDefault());
     document.addEventListener('gesturechange', (e) => e.preventDefault());
   }
@@ -824,7 +825,7 @@
         const reg = await navigator.serviceWorker.register('sw.js');
         console.log('✅ Service Worker registrado:', reg.scope);
       } catch (error) {
-        console.error('❌ Error registrando Service Worker:', error);
+        console.error('❌ Error registrando SW:', error);
       }
     }
   }

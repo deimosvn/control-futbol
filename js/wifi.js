@@ -1,6 +1,6 @@
 /**
- * RoboFútbol Control - Módulo WiFi
- * Conexión vía WebSocket
+ * BRL Control Pro - Módulo WiFi
+ * Conexión real vía WebSocket a ESP32
  */
 class WiFiConnection {
   constructor() {
@@ -17,24 +17,15 @@ class WiFiConnection {
     this.lastPong = 0;
   }
 
-  /**
-   * Verifica si WebSocket está disponible
-   */
   isAvailable() {
     return 'WebSocket' in window;
   }
 
-  /**
-   * Conectar al robot vía WebSocket
-   * @param {string} ip - Dirección IP del robot
-   * @param {number} port - Puerto WebSocket
-   */
   async connect(ip = '192.168.4.1', port = 81) {
     if (!this.isAvailable()) {
-      throw new Error('WebSocket no está disponible');
+      throw new Error('WebSocket no disponible');
     }
 
-    // Cerrar conexión previa si existe
     if (this.socket) {
       this.autoReconnect = false;
       this.socket.close();
@@ -47,17 +38,16 @@ class WiFiConnection {
     return new Promise((resolve, reject) => {
       try {
         this._updateStatus('connecting', `Conectando a ${ip}:${port}...`);
-        
-        const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-        this.socket = new WebSocket(`${protocol}://${ip}:${port}`);
+
+        // ESP32 en modo AP siempre usa ws:// (sin SSL)
+        this.socket = new WebSocket(`ws://${ip}:${port}`);
         this.socket.binaryType = 'arraybuffer';
 
-        // Timeout de conexión
         const connectTimeout = setTimeout(() => {
           if (this.socket.readyState !== WebSocket.OPEN) {
             this.socket.close();
             this._updateStatus('disconnected', 'Timeout de conexión');
-            reject(new Error('Timeout de conexión WiFi'));
+            reject(new Error('Timeout: no se pudo conectar al robot'));
           }
         }, 8000);
 
@@ -65,7 +55,7 @@ class WiFiConnection {
           clearTimeout(connectTimeout);
           this.connected = true;
           this.reconnectAttempts = 0;
-          this._updateStatus('connected', `Conectado a ${ip}:${port}`);
+          this._updateStatus('connected', `WiFi: ${ip}`);
           this._startPing();
           resolve(true);
         };
@@ -82,7 +72,6 @@ class WiFiConnection {
           if (this.autoReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             this._updateStatus('connecting', `Reconectando (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-            
             this.reconnectTimer = setTimeout(() => {
               this.connect(ip, port).catch(() => {});
             }, this.reconnectDelay);
@@ -93,19 +82,15 @@ class WiFiConnection {
 
         this.socket.onerror = (error) => {
           console.error('Error WebSocket:', error);
-          this._updateStatus('disconnected', 'Error de conexión WiFi');
         };
 
       } catch (error) {
-        this._updateStatus('disconnected', 'Error creando conexión WiFi');
+        this._updateStatus('disconnected', 'Error de conexión WiFi');
         reject(error);
       }
     });
   }
 
-  /**
-   * Desconectar
-   */
   async disconnect() {
     this.autoReconnect = false;
     clearTimeout(this.reconnectTimer);
@@ -119,10 +104,6 @@ class WiFiConnection {
     this._updateStatus('disconnected', 'WiFi desconectado');
   }
 
-  /**
-   * Enviar datos al robot
-   * @param {Object|string} data
-   */
   send(data) {
     if (!this.connected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
       return false;
@@ -143,19 +124,14 @@ class WiFiConnection {
     }
   }
 
-  /**
-   * Manejar datos recibidos
-   */
   _handleData(data) {
     let parsedData;
-    
     if (data instanceof ArrayBuffer) {
       parsedData = new TextDecoder().decode(data);
     } else {
       parsedData = data;
     }
 
-    // Manejar pong
     if (parsedData === 'pong') {
       this.lastPong = Date.now();
       return;
@@ -166,18 +142,14 @@ class WiFiConnection {
     }
   }
 
-  /**
-   * Iniciar heartbeat ping
-   */
   _startPing() {
     this._stopPing();
     this.lastPong = Date.now();
-    
+
     this.pingInterval = setInterval(() => {
       if (this.connected && this.socket.readyState === WebSocket.OPEN) {
         this.socket.send('ping');
-        
-        // Verificar si el último pong fue hace más de 10 segundos
+
         if (Date.now() - this.lastPong > 10000 && this.lastPong > 0) {
           console.warn('Sin respuesta de ping, posible desconexión');
         }
@@ -185,9 +157,6 @@ class WiFiConnection {
     }, 5000);
   }
 
-  /**
-   * Detener heartbeat
-   */
   _stopPing() {
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
@@ -195,9 +164,6 @@ class WiFiConnection {
     }
   }
 
-  /**
-   * Esperar a que el socket se cierre
-   */
   _waitForClose() {
     return new Promise((resolve) => {
       if (!this.socket || this.socket.readyState === WebSocket.CLOSED) {
@@ -210,29 +176,19 @@ class WiFiConnection {
           resolve();
         }
       }, 100);
-      setTimeout(() => {
-        clearInterval(check);
-        resolve();
-      }, 2000);
+      setTimeout(() => { clearInterval(check); resolve(); }, 2000);
     });
   }
 
-  /**
-   * Actualizar estado
-   */
   _updateStatus(state, message) {
     if (this.onStatusChange) {
       this.onStatusChange(state, message, 'wifi');
     }
   }
 
-  /**
-   * Obtener latencia estimada
-   */
   getLatency() {
     return this.lastPong > 0 ? Date.now() - this.lastPong : null;
   }
 }
 
-// Exportar como singleton
 window.wifiConn = new WiFiConnection();
